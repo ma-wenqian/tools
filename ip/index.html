@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>出口检测</title>
+<style>
+  /* Windows 的 Segoe UI Emoji 不带国旗;这个字体只含旗帜字形,排在最前面 */
+  @font-face{
+    font-family:"Twemoji Country Flags";
+    src:url("fonts/TwemojiCountryFlags.woff2") format("woff2");
+    unicode-range:U+1F1E6-1F1FF,U+1F3F4,U+E0062-E007F;
+    font-display:swap;
+  }
+  :root{
+    --bg:#f6f7f9;--card:#fff;--fg:#17191c;--mut:#6b7280;--line:#e5e7eb;
+    --ok:#15803d;--okbg:#dcfce7;--bad:#b91c1c;--badbg:#fee2e2;--acc:#2563eb;--warn:#b45309;--warnbg:#fef3c7;
+    --code:#0f172a;--codefg:#e2e8f0;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0f1114;--card:#181b20;--fg:#e8eaed;--mut:#9aa1ab;--line:#2a2e35;
+    --ok:#4ade80;--okbg:#14532d;--bad:#f87171;--badbg:#450a0a;--acc:#60a5fa;--warn:#fbbf24;--warnbg:#451a03;
+    --code:#0b0d10;--codefg:#d1d5db;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 "Twemoji Country Flags",system-ui,-apple-system,"Segoe UI",sans-serif}
+  main{max-width:760px;margin:0 auto;padding:24px 16px 40px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+  h1{font-size:20px;margin:0}
+  button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:8px 16px;font:inherit;font-weight:500;cursor:pointer}
+  button:disabled{opacity:.6;cursor:default}
+  #sum{padding:12px 14px;border-radius:10px;margin-bottom:16px;font-weight:500;display:none}
+  #sum.ok{display:block;background:var(--okbg);color:var(--ok)}
+  #sum.warn{display:block;background:var(--warnbg);color:var(--warn)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .card .name{display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-bottom:8px}
+  .badge{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--line);color:var(--mut)}
+  .badge.ok{background:var(--okbg);color:var(--ok)}
+  .badge.bad{background:var(--badbg);color:var(--bad)}
+  .ip{font:600 15px ui-monospace,Consolas,monospace;word-break:break-all;min-height:22px}
+  .where{margin-top:6px;font-size:14px}
+  .meta{margin-top:2px;font-size:13px;color:var(--mut)}
+  .cli{margin-top:24px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .cli h2{font-size:14px;margin:0 0 8px}
+  .cli .row{display:flex;gap:8px;align-items:stretch}
+  .cli .row code{flex:1;min-width:0;background:var(--code);color:var(--codefg);padding:10px 12px;border-radius:8px;
+    font:13px ui-monospace,Consolas,monospace;overflow-x:auto;white-space:nowrap}
+  .cli button{white-space:nowrap}
+  .cli p{margin:8px 0 0;font-size:12px;color:var(--mut)}
+  .note{margin-top:20px;font-size:12px;color:var(--mut)}
+  .cli p code,.note code{background:var(--line);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>当前网络出口</h1>
+    <button id="go">重新检测</button>
+  </header>
+  <div id="sum"></div>
+  <div class="grid" id="grid"></div>
+
+  <section class="cli">
+    <h2>在服务器上测(命令行)</h2>
+    <div class="row">
+      <code id="cmd"></code>
+      <button id="copy">复制</button>
+    </div>
+    <p>网页测的是<b>当前这台设备</b>的出口;想测某台服务器,SSH 上去粘贴这条。加 <code>-s -- -4</code> 可强制 IPv4,<code>-6</code> 强制 IPv6。</p>
+  </section>
+
+  <p class="note">
+    浏览器请求各站 <code>/cdn-cgi/trace</code>,Cloudflare 回报它看到的你的 IP。
+    「CF 入口机房」是你的流量进入 Cloudflare 的那个机房(机场代码),不等于 IP 登记地。
+    IP 不一致 = 分流把它们送去了不同出口。「失败」= 对方没放开跨域,或该域名没走 Cloudflare。
+  </p>
+</main>
+<script>
+const TARGETS = [
+  ['Cloudflare', 'https://www.cloudflare.com/cdn-cgi/trace'],
+  ['Claude', 'https://claude.ai/cdn-cgi/trace'],
+  ['ChatGPT', 'https://chatgpt.com/cdn-cgi/trace'],
+  ['OpenAI', 'https://openai.com/cdn-cgi/trace'],
+  ['OpenAI Platform', 'https://platform.openai.com/cdn-cgi/trace'],
+  ['Perplexity', 'https://www.perplexity.ai/cdn-cgi/trace'],
+];
+
+// CF 机房(IATA 机场代码)→ 城市。只列常见的,没有的就只显示代码
+const COLO = {
+  LAX:'洛杉矶',SJC:'圣何塞',SFO:'旧金山',SEA:'西雅图',PDX:'波特兰',LAS:'拉斯维加斯',PHX:'凤凰城',DEN:'丹佛',
+  DFW:'达拉斯',IAH:'休斯顿',ORD:'芝加哥',MSP:'明尼阿波利斯',ATL:'亚特兰大',MIA:'迈阿密',EWR:'纽瓦克',
+  IAD:'华盛顿',JFK:'纽约',BOS:'波士顿',YYZ:'多伦多',YVR:'温哥华',YUL:'蒙特利尔',
+  HKG:'香港',SIN:'新加坡',NRT:'东京成田',HND:'东京羽田',KIX:'大阪',ICN:'首尔',TPE:'台北',KHH:'高雄',
+  MFM:'澳门',BKK:'曼谷',KUL:'吉隆坡',CGK:'雅加达',MNL:'马尼拉',SGN:'胡志明市',HAN:'河内',
+  BOM:'孟买',DEL:'新德里',MAA:'金奈',BLR:'班加罗尔',DXB:'迪拜',TLV:'特拉维夫',
+  SYD:'悉尼',MEL:'墨尔本',AKL:'奥克兰',PER:'珀斯',
+  LHR:'伦敦',MAN:'曼彻斯特',AMS:'阿姆斯特丹',FRA:'法兰克福',CDG:'巴黎',MRS:'马赛',MAD:'马德里',
+  MXP:'米兰',ZRH:'苏黎世',VIE:'维也纳',WAW:'华沙',ARN:'斯德哥尔摩',HEL:'赫尔辛基',CPH:'哥本哈根',
+  DUB:'都柏林',OTP:'布加勒斯特',SOF:'索非亚',IST:'伊斯坦布尔',
+  GRU:'圣保罗',EZE:'布宜诺斯艾利斯',SCL:'圣地亚哥',BOG:'波哥大',MEX:'墨西哥城',
+  JNB:'约翰内斯堡',CPT:'开普敦',LOS:'拉各斯',NBO:'内罗毕',
+};
+
+const regionName = (() => {
+  try { return new Intl.DisplayNames(['zh'], {type: 'region'}); } catch (e) { return null; }
+})();
+const flag = cc => /^[A-Z]{2}$/.test(cc)
+  ? String.fromCodePoint(...[...cc].map(c => 0x1F1E6 + c.charCodeAt(0) - 65)) : '';
+
+const grid = document.getElementById('grid');
+const sum = document.getElementById('sum');
+const btn = document.getElementById('go');
+
+function parse(text){
+  const o = {};
+  for (const line of text.split('\n')) {
+    const i = line.indexOf('=');
+    if (i > 0) o[line.slice(0, i)] = line.slice(i + 1);
+  }
+  return o;
+}
+
+function makeCard(name){
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.innerHTML = '<div class="name"><span></span><span class="badge">检测中</span></div>' +
+    '<div class="ip">…</div><div class="where"></div><div class="meta"></div>';
+  el.querySelector('.name span').textContent = name;
+  grid.appendChild(el);
+  return el;
+}
+
+async function probe(url, el){
+  const badge = el.querySelector('.badge');
+  const t0 = performance.now();
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch(url + '?_=' + Date.now(), {cache: 'no-store', signal: ctl.signal});
+    clearTimeout(timer);
+    const o = parse(await r.text());
+    if (!o.ip) throw new Error('no ip');
+    el.querySelector('.ip').textContent = o.ip;
+    let country = o.loc || '-';
+    try { if (regionName && o.loc) country = regionName.of(o.loc) || o.loc; } catch (e) {}
+    el.querySelector('.where').textContent = (flag(o.loc) + ' ' + country).trim();
+    const city = COLO[o.colo];
+    el.querySelector('.meta').textContent =
+      'CF 入口机房 ' + (o.colo || '-') + (city ? '(' + city + ')' : '') +
+      ' · ' + Math.round(performance.now() - t0) + ' ms';
+    badge.textContent = '成功'; badge.className = 'badge ok';
+    return o.ip;
+  } catch (e) {
+    el.querySelector('.ip').textContent = '—';
+    el.querySelector('.meta').textContent = '无法读取(跨域被拦或不通)';
+    badge.textContent = '失败'; badge.className = 'badge bad';
+    return null;
+  }
+}
+
+async function run(){
+  btn.disabled = true;
+  grid.innerHTML = '';
+  sum.className = ''; sum.textContent = '';
+  const ips = await Promise.all(TARGETS.map(([n, u]) => probe(u, makeCard(n))));
+  const uniq = [...new Set(ips.filter(Boolean))];
+  // 按协议族分开比:双栈机器 v4/v6 各一个出口很正常
+  const v4 = uniq.filter(x => !x.includes(':')), v6 = uniq.filter(x => x.includes(':'));
+  if (v4.length > 1 || v6.length > 1) {
+    sum.className = 'warn'; sum.textContent = '同一协议族下出口不一致(v4 ' + v4.length + ' 个 / v6 ' + v6.length + ' 个):分流把不同站点送去了不同出口';
+  } else if (v4.length && v6.length) {
+    sum.className = 'ok'; sum.textContent = '出口一致(双栈:v4 ' + v4[0] + ',v6 ' + v6[0] + ')';
+  } else if (uniq.length === 1) {
+    sum.className = 'ok'; sum.textContent = '所有可读取的目标出口一致:' + uniq[0];
+  }
+  btn.disabled = false;
+}
+btn.onclick = run;
+run();
+
+// 命令行提示:地址取自当前页面,换域名不用改
+const src = /^https?:$/.test(location.protocol)
+  ? new URL('egress.sh', location.href).href.replace(/^https?:\/\//, '')
+  : 'tools.vnkma.com/ip/egress.sh';
+const cmd = 'curl -fsSL ' + src + ' | bash';
+document.getElementById('cmd').textContent = cmd;
+document.getElementById('copy').onclick = async e => {
+  const b = e.currentTarget;
+  try {
+    await navigator.clipboard.writeText(cmd);
+    b.textContent = '已复制';
+  } catch (err) {
+    const r = document.createRange(); r.selectNodeContents(document.getElementById('cmd'));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    b.textContent = '已选中,Ctrl+C';
+  }
+  setTimeout(() => b.textContent = '复制', 1800);
+};
+</script>
+</body>
+</html>

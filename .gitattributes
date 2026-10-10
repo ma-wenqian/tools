@@ -1,0 +1,3 @@
+*.sh text eol=lf
+ai-motd/99-ai-status text eol=lf
+*.woff2 binary

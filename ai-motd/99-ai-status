@@ -1,0 +1,44 @@
+#!/bin/sh
+# Live AI reachability check shown at SSH login (pam_motd).
+# /v1/models without a key: 401 = reachable and region OK, 403 = region blocked.
+# Each line also shows the exit (IP, country, CF colo) that host is reached through,
+# read from https://<host>/cdn-cgi/trace -- shown only, it does not decide unlocked/blocked.
+# Everything runs in parallel, capped at 3s per request, so login is never held up longer.
+
+check() {
+	tr=$(mktemp 2>/dev/null) || tr=/dev/null
+	curl -s -m 3 "https://$2/cdn-cgi/trace" > "$tr" 2>/dev/null &
+	tp=$!
+	r=$(curl -s -o /dev/null -m 3 -w '%{http_code} %{time_total}' "https://$2/v1/models" 2>/dev/null)
+	wait "$tp"
+	code=${r%% *}
+	t=$(printf '%.1fs' "${r#* }" 2>/dev/null)
+	case "$code" in
+		401|200) s="✔ unlocked" ;;
+		403) s="✘ blocked (region)" ;;
+		000|"") s="✘ unreachable"; t="  -  " ;;
+		*) s="? HTTP $code" ;;
+	esac
+	ip=$(sed -n 's/^ip=//p' "$tr" 2>/dev/null)
+	loc=$(sed -n 's/^loc=//p' "$tr" 2>/dev/null)
+	colo=$(sed -n 's/^colo=//p' "$tr" 2>/dev/null)
+	[ "$tr" = /dev/null ] || rm -f "$tr"
+	if [ -n "$ip" ]; then
+		x="exit $ip ${loc:--}${colo:+ ($colo)}"
+	else
+		x="exit ?"
+	fi
+	printf '  %-7s %-19s %5s  %s  %s\n' "$1" "$2" "$t" "$s" "$x"
+}
+
+tmp=$(mktemp -d 2>/dev/null) || exit 0
+check Claude api.anthropic.com > "$tmp/1" &
+p1=$!
+check OpenAI api.openai.com > "$tmp/2" &
+p2=$!
+wait "$p1" "$p2"
+
+echo
+echo " ── AI access (live check) ───────────────────────────"
+cat "$tmp/1" "$tmp/2"
+rm -rf "$tmp"
