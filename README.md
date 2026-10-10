@@ -43,9 +43,11 @@ Notes:
 ## `ai-motd/` — login banner / 登录提示
 
 ```
- ── AI access (live check) ───────────────────────────
+================================= AI access ==================================
   Claude  api.anthropic.com    0.7s  ✔ unlocked  exit 203.0.113.7 US (LAX)
   OpenAI  api.openai.com       0.7s  ✔ unlocked  exit 203.0.113.7 US (LAX)
+==============================================================================
+  source: tools.vnkma.com/ai-motd  |  github.com/ma-wenqian/tools
 ```
 
 `401` from `/v1/models` without a key = reachable and region allowed, `403` = region blocked.

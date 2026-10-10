@@ -75,8 +75,10 @@ p2=$!
 wait "$p1" "$p2"
 
 echo
-echo " ── AI access (live check) ───────────────────────────"
+echo "================================= AI access =================================="
 cat "$tmp/1" "$tmp/2"
+echo "=============================================================================="
+echo "  source: tools.vnkma.com/ai-motd  |  github.com/ma-wenqian/tools"
 rm -rf "$tmp"
 PAYLOAD
 
