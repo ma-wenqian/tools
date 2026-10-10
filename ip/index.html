@@ -49,6 +49,7 @@
   .cli button{white-space:nowrap}
   .cli p{margin:8px 0 0;font-size:12px;color:var(--mut)}
   .note{margin-top:20px;font-size:12px;color:var(--mut)}
+  .note a{color:var(--acc)}
   .cli p code,.note code{background:var(--line);padding:1px 5px;border-radius:4px}
 </style>
 </head>
@@ -74,6 +75,10 @@
     浏览器请求各站 <code>/cdn-cgi/trace</code>,Cloudflare 回报它看到的你的 IP。
     「CF 入口机房」是你的流量进入 Cloudflare 的那个机房(机场代码),不等于 IP 登记地。
     IP 不一致 = 分流把它们送去了不同出口。「失败」= 对方没放开跨域,或该域名没走 Cloudflare。
+  </p>
+  <p class="note">
+    <a href="../">← 全部工具</a> ·
+    <a href="https://github.com/ma-wenqian/tools" target="_blank" rel="noopener">GitHub 源码</a>(MIT)
   </p>
 </main>
 <script>

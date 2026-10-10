@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tools</title>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--fg:#17191c;--mut:#6b7280;--line:#e5e7eb;--acc:#2563eb;--code:#0f172a;--codefg:#e2e8f0}
+  @media (prefers-color-scheme:dark){:root{--bg:#0f1114;--card:#181b20;--fg:#e8eaed;--mut:#9aa1ab;--line:#2a2e35;--acc:#60a5fa;--code:#0b0d10;--codefg:#d1d5db}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+  main{max-width:760px;margin:0 auto;padding:24px 16px 40px}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--mut);margin:0 0 20px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  a.card{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;color:inherit;text-decoration:none}
+  a.card:hover{border-color:var(--acc)}
+  .card h2{font-size:16px;margin:0 0 6px;color:var(--acc)}
+  .card p{margin:0;color:var(--mut);font-size:14px}
+  .card code{display:block;margin-top:10px;background:var(--code);color:var(--codefg);padding:8px 10px;border-radius:8px;
+    font:12px ui-monospace,Consolas,monospace;overflow-x:auto;white-space:nowrap}
+  footer{margin-top:24px;font-size:12px;color:var(--mut)}
+  footer a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Tools</h1>
+  <p class="sub">小而独立的公开工具,都不依赖后端。</p>
+  <div class="grid">
+    <a class="card" href="ip/">
+      <h2>出口检测</h2>
+      <p>当前网络访问 Claude / ChatGPT / Cloudflare 的出口 IP、国家和机房。附服务器命令行版。</p>
+      <code>curl -fsSL tools.vnkma.com/ip/egress.sh | bash</code>
+    </a>
+    <a class="card" href="https://github.com/ma-wenqian/tools/tree/main/ai-motd">
+      <h2>SSH 登录提示</h2>
+      <p>Debian / Ubuntu:登录时显示 Claude / OpenAI 能不能用,以及各自的出口。可卸载,无自动更新。</p>
+      <code>curl -fsSL tools.vnkma.com/ai-motd/install.sh | sudo sh</code>
+    </a>
+  </div>
+  <footer>
+    源码与说明:<a href="https://github.com/ma-wenqian/tools">github.com/ma-wenqian/tools</a>(MIT)
+  </footer>
+</main>
+</body>
+</html>
