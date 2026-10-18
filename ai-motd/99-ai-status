@@ -1,9 +1,16 @@
 #!/bin/sh
-# Live AI reachability check shown at SSH login (pam_motd).
+# Live AI reachability check shown at SSH login (pam_motd, or /etc/profile.d with --profile).
 # /v1/models without a key: 401 = reachable and region OK, 403 = region blocked.
 # Each line also shows the exit (IP, country, CF colo) that host is reached through,
 # read from https://<host>/cdn-cgi/trace -- shown only, it does not decide unlocked/blocked.
 # Everything runs in parallel, capped at 3s per request, so login is never held up longer.
+
+# If an egress agent publishes which users it routes (aiegress writes /run/aiegress/scope.json),
+# show this only to users in scope. Under pam_motd we run as root, so the check is skipped there.
+sf=${AI_MOTD_SCOPE_FILE:-/run/aiegress/scope.json}
+if [ -r "$sf" ] && [ "$(id -u)" -ne 0 ]; then
+	sed -n 's/.*"uids": *\[\([^]]*\)\].*/\1/p' "$sf" | tr -d ' ' | tr ',' '\n' | grep -qx "$(id -u)" || exit 0
+fi
 
 check() {
 	tr=$(mktemp 2>/dev/null) || tr=/dev/null
